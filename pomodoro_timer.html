@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍅 番茄钟 · Pomodoro</title>
+<style>
+  :root {
+    --bg: #F5F0E8;
+    --surface: #FFFBF5;
+    --text: #4A3A2E;
+    --subtext: #A09080;
+    --work: #F08070;
+    --break: #80D0B0;
+    --idle: #C0A0D0;
+    --paused: #F0D090;
+    --btn-bg: #EDE5D8;
+    --btn-hover: #E0D5C0;
+    --ring-bg: #E8E0D5;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .card {
+    background: var(--surface);
+    border-radius: 24px;
+    padding: 40px 36px 32px;
+    width: 380px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 24px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── 圆环计时器 ── */
+  .ring-container {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    margin: 0 auto 12px;
+  }
+
+  svg {
+    transform: rotate(-90deg);
+    width: 240px;
+    height: 240px;
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: var(--ring-bg);
+    stroke-width: 10;
+  }
+
+  .ring-fg {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.9s linear, stroke 0.3s;
+  }
+
+  .time-display {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .time-text {
+    font-size: 52px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 2px;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.3s;
+  }
+
+  .state-text {
+    font-size: 14px;
+    color: var(--subtext);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* ── 进度条 ── */
+  .progress-track {
+    background: var(--ring-bg);
+    border-radius: 6px;
+    height: 8px;
+    margin: 12px 0 8px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.9s linear, background 0.3s;
+  }
+
+  /* ── 信息和按钮 ── */
+  .session-info {
+    font-size: 13px;
+    color: var(--subtext);
+    margin-bottom: 18px;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text);
+    background: var(--btn-bg);
+    transition: background 0.2s, transform 0.1s, opacity 0.2s;
+    letter-spacing: 0.3px;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--btn-hover);
+  }
+
+  button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--work);
+    color: var(--surface);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #E06858;
+  }
+
+  .footer {
+    font-size: 12px;
+    color: var(--subtext);
+    margin-top: 18px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🍅 番茄钟</h1>
+
+  <!-- 圆环 -->
+  <div class="ring-container">
+    <svg viewBox="0 0 240 240">
+      <circle class="ring-bg" cx="120" cy="120" r="110"/>
+      <circle id="ringFg" class="ring-fg" cx="120" cy="120" r="110"
+              stroke-dasharray="691.15" stroke-dashoffset="0"/>
+    </svg>
+    <div class="time-display">
+      <span id="timeText" class="time-text">25:00</span>
+      <span id="stateText" class="state-text">准备开始</span>
+    </div>
+  </div>
+
+  <!-- 进度条 -->
+  <div class="progress-track">
+    <div id="progressFill" class="progress-fill" style="width: 0%; background: var(--idle);"></div>
+  </div>
+
+  <!-- 会话 -->
+  <div class="session-info" id="sessionInfo">已完成: 0 个番茄</div>
+
+  <!-- 按钮 -->
+  <div class="btn-row">
+    <button id="btnStart" class="btn-primary" onclick="onStart()">▶  开始</button>
+    <button id="btnPause" onclick="onPause()" disabled>⏸  暂停</button>
+    <button id="btnReset" onclick="onReset()">↺  重置</button>
+  </div>
+
+  <div class="footer">工作 25 分钟 · 休息 5 分钟</div>
+</div>
+
+<script>
+  const WORK_SECONDS = 25 * 60;
+  const BREAK_SECONDS = 5 * 60;
+
+  const State = { IDLE: 'idle', WORKING: 'working', PAUSED: 'paused', BREAK: 'break' };
+
+  let state = State.IDLE;
+  let remaining = WORK_SECONDS;
+  let totalSeconds = WORK_SECONDS;
+  let sessionCount = 0;
+  let timerId = null;
+
+  // DOM 引用
+  const ringFg = document.getElementById('ringFg');
+  const timeText = document.getElementById('timeText');
+  const stateText = document.getElementById('stateText');
+  const progressFill = document.getElementById('progressFill');
+  const sessionInfo = document.getElementById('sessionInfo');
+  const btnStart = document.getElementById('btnStart');
+  const btnPause = document.getElementById('btnPause');
+  const btnReset = document.getElementById('btnReset');
+
+  // 圆环周长
+  const CIRCUMFERENCE = 2 * Math.PI * 110; // ~691.15
+
+  function getColor() {
+    switch (state) {
+      case State.WORKING: return 'var(--work)';
+      case State.BREAK:   return 'var(--break)';
+      case State.PAUSED:  return 'var(--paused)';
+      default:            return 'var(--idle)';
+    }
+  }
+
+  function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+
+  function updateDisplay() {
+    const fraction = totalSeconds > 0 ? 1 - remaining / totalSeconds : 0;
+    const color = getColor();
+
+    // 圆环
+    ringFg.setAttribute('stroke-dashoffset', CIRCUMFERENCE * fraction);
+    ringFg.setAttribute('stroke', color);
+
+    // 时间文字
+    timeText.textContent = fmtTime(remaining);
+    timeText.style.color = color;
+
+    // 进度条
+    progressFill.style.width = (fraction * 100) + '%';
+    progressFill.style.background = color;
+
+    // 状态文字
+    const stateMap = {
+      [State.IDLE]: '准备开始',
+      [State.WORKING]: '🍅 专注工作中…',
+      [State.PAUSED]: '⏸ 已暂停',
+      [State.BREAK]: '☕ 休息一下',
+    };
+    stateText.textContent = stateMap[state];
+
+    // 按钮状态
+    updateButtons();
+  }
+
+  function updateButtons() {
+    switch (state) {
+      case State.IDLE:
+        btnStart.textContent = '▶  开始';
+        btnStart.className = 'btn-primary';
+        btnStart.disabled = false;
+        btnPause.disabled = true;
+        break;
+      case State.WORKING:
+        btnStart.textContent = '▶  开始';
+        btnStart.className = 'btn-primary';
+        btnStart.disabled = true;
+        btnPause.disabled = false;
+        btnPause.textContent = '⏸  暂停';
+        break;
+      case State.PAUSED:
+        btnStart.textContent = '▶  继续';
+        btnStart.className = 'btn-primary';
+        btnStart.disabled = false;
+        btnPause.disabled = true;
+        break;
+      case State.BREAK:
+        btnStart.textContent = '⏭  跳过';
+        btnStart.className = '';
+        btnStart.disabled = false;
+        btnPause.disabled = false;
+        btnPause.textContent = '⏸  暂停';
+        break;
+    }
+  }
+
+  function tick() {
+    if (remaining <= 0) {
+      timerFinished();
+      return;
+    }
+    remaining--;
+    updateDisplay();
+    timerId = setTimeout(tick, 1000);
+  }
+
+  function timerFinished() {
+    if (state === State.WORKING) {
+      sessionCount++;
+      sessionInfo.textContent = `已完成: ${sessionCount} 个番茄`;
+      notify('🍅 工作时间结束！', '休息一下吧，起来走走～');
+      startBreak();
+    } else if (state === State.BREAK) {
+      notify('☕ 休息时间结束！', '可以开始下一个番茄了');
+      resetToIdle();
+    }
+  }
+
+  function notify(title, body) {
+    // 浏览器通知
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '🍅' });
+    } else if (Notification.permission === 'default') {
+      Notification.requestPermission().then(p => {
+        if (p === 'granted') new Notification(title, { body, icon: '🍅' });
+      });
+    }
+    // 也更新页面标题闪烁
+    let count = 0;
+    const origTitle = document.title;
+    const flash = setInterval(() => {
+      document.title = count % 2 === 0 ? `🔔 ${title}` : origTitle;
+      count++;
+      if (count >= 8) { clearInterval(flash); document.title = origTitle; }
+    }, 500);
+  }
+
+  function onStart() {
+    if (state === State.IDLE || state === State.BREAK) {
+      state = State.WORKING;
+      remaining = WORK_SECONDS;
+      totalSeconds = WORK_SECONDS;
+    } else if (state === State.PAUSED) {
+      state = State.WORKING;
+    }
+    clearTimeout(timerId);
+    updateDisplay();
+    timerId = setTimeout(tick, 1000);
+  }
+
+  function onPause() {
+    if (state !== State.WORKING && state !== State.BREAK) return;
+    state = State.PAUSED;
+    clearTimeout(timerId);
+    updateDisplay();
+  }
+
+  function onReset() {
+    clearTimeout(timerId);
+    resetToIdle();
+  }
+
+  function resetToIdle() {
+    state = State.IDLE;
+    remaining = WORK_SECONDS;
+    totalSeconds = WORK_SECONDS;
+    clearTimeout(timerId);
+    updateDisplay();
+  }
+
+  function startBreak() {
+    state = State.BREAK;
+    remaining = BREAK_SECONDS;
+    totalSeconds = BREAK_SECONDS;
+    updateDisplay();
+    timerId = setTimeout(tick, 1000);
+  }
+
+  // 初始化
+  ringFg.setAttribute('stroke-dasharray', CIRCUMFERENCE);
+  ringFg.setAttribute('stroke-dashoffset', '0');
+  updateDisplay();
+
+  // 首次点击按钮时请求通知权限
+  document.addEventListener('click', () => {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, { once: true });
+</script>
+
+</body>
+</html>
